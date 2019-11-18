@@ -1,0 +1,124 @@
+---
+title: "Temperatures in Chile"
+output: 
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+## Load the data
+
+Source: [Cr2.cl](http://www.cr2.cl/datos-de-temperatura/)
+
+```{r, message=F, warning=F}
+options(Encoding = 'UTF-8')
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(maps)
+
+temps <- read.csv("C:/Richard/R and Python/Datasets/Temperatures/cr2_tasAmon_2018.txt",header=F,row.names=1,na.strings = '-9999')
+temps2 <- data.frame(t(temps))
+temps3 <- gather(temps2,key="date",value="temp",16:1432)
+temps3 <- temps3 %>% filter(!is.na(temp)) %>%
+  mutate(year=substr(date,2,5),
+         month=substr(date,7,8),
+         date=as.Date(paste0(year,"-",month,"-01")),
+         temp=as.numeric(temp))
+
+temps3 %>% select(nombre,date,temp,month,year) %>% head(10)
+
+```
+
+
+## Stations
+
+```{r, message=F, warning=F}
+#Good stations are those which have at least 20 years of measurements between 1970
+#and 2000 (to calculate the average)
+good_stations <- temps3 %>% group_by(nombre) %>%
+  summarise(start_date=min(date),end_date=max(date),measurements=n(),
+            still_active=ifelse(end_date=='2018-01-01','Y','N'),
+            thirty_y_period=length(temp[date>='1970-01-01' & date < '2000-01-01'])) %>%
+  filter(thirty_y_period>240,still_active=='Y')
+
+stations <- temps3 %>% select(nombre,latitud,longitud) %>% unique() %>%
+  mutate(longitud=as.numeric(as.character(longitud)),
+         latitud=as.numeric(as.character(latitud))) %>%
+  filter(longitud>(-80),longitud<(-65)) %>%
+  inner_join(good_stations,by=c("nombre"="nombre"))
+
+chile <- map_data("world",region="Chile") %>% 
+  filter(subregion!="Easter Island" | is.na(subregion))
+
+g <- ggplot() + geom_polygon(data = chile, aes(x=long, y = lat, group = group)) +
+  geom_point(data=stations,aes(x=longitud,y=latitud,text=nombre),col="yellow",size=2) + 
+  coord_fixed(0.5)
+
+library(plotly)
+
+ggplotly(g,tooltip="text")
+```
+
+## Compare current temperatures to 30-years average
+
+```{r}
+#Compare to 30 years average
+
+avg_temps <- temps3 %>% 
+  filter(year %in% 1970:2000) %>% 
+  filter(nombre %in% stations$nombre) %>%
+  group_by(nombre,month) %>%
+  summarise(avg_temp=mean(temp,na.rm=T))
+
+avg_temps %>% left_join(stations,by=c("nombre"="nombre")) %>%
+  ggplot(aes(x=month,y=avg_temp,group=1))+geom_line(size=1)+
+  facet_wrap(~reorder(nombre,-latitud))
+
+act_temps <- temps3 %>% filter(nombre %in% stations$nombre) %>%
+  filter(year %in% c(2017,2018)) %>%
+  select(nombre,year,month,temp)
+
+temp_diff <- act_temps %>% 
+  left_join(avg_temps, by=c("nombre"="nombre","month"="month")) %>%
+  left_join(stations,by=c("nombre"="nombre")) %>%
+  mutate(temp_diff=temp-avg_temp) %>%
+  filter(year%in% c("2015","2016","2017"))
+
+temp_diff %>% head(10)
+```
+
+We want to visualize the differences on the map.
+
+```{r}
+g <- ggplot() + geom_polygon(data = chile, aes(x=long, y = lat, group = group)) +
+  geom_point(data=temp_diff,aes(x=longitud,y=latitud,col=temp_diff,text=paste0(nombre,"\n",round(temp_diff,2),"°C")),size=1.5) + 
+  scale_color_gradient2(low="blue",high="red",mid="white",midpoint=0,limits=c(-3,3),
+                        na.value="red")+
+  coord_fixed(0.5) +facet_grid(year~month)
+
+ggplotly(g,tooltip="text")
+```
+
+### Animation
+
+```{r,message=F}
+g <- ggplot() + geom_polygon(data = chile, aes(x=long, y = lat, group = group)) +
+  geom_point(data=temp_diff,aes(x=longitud,y=latitud,col=temp_diff,
+                                text=paste0(nombre,"\n",round(temp_diff,2),"°C")),size=4) + 
+  scale_color_gradient2(low="blue",high="red",mid="white",midpoint=0,limits=c(-3,3),
+                        na.value="red")+
+  coord_fixed(0.5)
+
+
+library(gganimate)
+
+g + transition_states(month,state_length=2) +
+  ggtitle('Now showing {closest_state}-2017')
+```
+
