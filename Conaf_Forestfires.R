@@ -3,6 +3,7 @@
 library(dplyr)
 library(tidyr)
 library(ggplot2)
+library(forcats)
 
 #######
 #Load Data and clean
@@ -85,8 +86,14 @@ df_fires <- df_fires %>% mutate(month_num = case_when(
 )) %>% mutate(year=ifelse(month_num>=7,year-1,year))
 
 
-df_fires %>% group_by(year,month,month_num) %>% summarise(fires=sum(forest_fire_cnt)) %>%
+df_fires %>% group_by(year,month,month_num) %>% 
+  summarise(fires=sum(forest_fire_cnt)) %>%
   ggplot(aes(x=year,y=fires))+geom_line()+facet_wrap(~reorder(month,month_num))
 
-df_fires %>% group_by(year,region) %>% summarise(fires=sum(forest_fire_cnt)) %>%
+df_fires %>% 
+  mutate(region=fct_relevel(region,c("XV","I","II","III","IV","V","RM","VI","VII","XVI",
+                                     "VIII","IX","X","XI","XII"))) %>% 
+  filter(!region%in%c("XV","I","II","XVI")) %>% 
+  group_by(year,region) %>% 
+  summarise(fires=sum(forest_fire_cnt)) %>%
   ggplot(aes(x=year,y=fires))+geom_line()+facet_wrap(~region)

@@ -1,11 +1,12 @@
 library(dplyr)
 library(ggplot2)
 library(tidyr)
+library(plotly)
 
 temps <- read.csv("C:/Richard/R and Python/Datasets/Temperatures/cr2_tasAmon_2018.txt",header=F,row.names=1,na.strings = '-9999')
-temps2 <- data.frame(t(temps))
-temps3 <- gather(temps2,key="date",value="temp",16:1432)
-temps3 <- temps3 %>% filter(!is.na(temp)) %>%
+temps <- temps %>% t() %>% data.frame() %>%
+  gather(key="date",value="temp",16:1432) %>%
+  filter(!is.na(temp)) %>%
   mutate(year=substr(date,2,5),
          month=substr(date,7,8),
          date=as.Date(paste0(year,"-",month,"-01")),
@@ -16,7 +17,7 @@ temps3 <- temps3 %>% filter(!is.na(temp)) %>%
 
 #Good stations are those which have at least 20 years of measurements between 1970
 #and 2000 (to calculate the average)
-stations <- temps3 %>% group_by(nombre) %>%
+stations <- temps %>% group_by(nombre) %>%
   mutate(longitud=as.numeric(as.character(longitud)),
          latitud=as.numeric(as.character(latitud))) %>%
   summarise(start_date=min(date),end_date=max(date),measurements=n(),
@@ -36,13 +37,13 @@ g <- ggplot() + geom_polygon(data = chile, aes(x=long, y = lat, group = group)) 
   geom_point(data=stations,aes(x=longitud,y=latitud,text=nombre),col="yellow",size=2) + 
   coord_fixed(0.5)
 
-library(plotly)
+
 
 ggplotly(g,tooltip="text")
 
 #Compare to 30 years average
 
-avg_temps <- temps3 %>% 
+avg_temps <- temps %>% 
   filter(year %in% 1970:2000) %>% 
   filter(nombre %in% stations$nombre) %>%
   group_by(nombre,month) %>%
@@ -52,7 +53,7 @@ avg_temps %>% left_join(stations,by=c("nombre"="nombre")) %>%
   ggplot(aes(x=month,y=avg_temp,group=1))+geom_line(size=1)+
   facet_wrap(~reorder(nombre,-latitud))
 
-act_temps <- temps3 %>% filter(nombre %in% stations$nombre) %>%
+act_temps <- temps %>% filter(nombre %in% stations$nombre) %>%
   filter(year %in% 2010:2017) %>%
   select(nombre,year,month,temp)
 
@@ -67,13 +68,18 @@ temp_diff %>% ggplot(aes(x=month,group=1))+geom_line(aes(y=avg_temp),size=1)+
 
 #For ggplotly: size=2, uncomment the facet_wrap
 #For gganimate: size=4, comment the facet_wrap
-g <- ggplot() + geom_polygon(data = chile, aes(x=long, y = lat, group = group)) +
-  geom_point(data=temp_diff,aes(x=longitud,y=latitud,col=temp_diff,text=paste0(nombre,"\n",round(temp_diff,2),"°C")),size=2) + 
+g <- ggplot() + 
+  geom_polygon(data = chile, aes(x=long, y = lat, group = group)) +
+  geom_point(data=temp_diff,
+             aes(x=longitud,y=latitud,col=temp_diff,
+                 text=paste0(nombre,"\n",round(temp_diff,2),"Â°C")),size=2) + 
   scale_color_gradient2(low="blue",high="red",mid="white",midpoint=0,limits=c(-3,3),
                         na.value="red")+
-  coord_fixed(0.5) +facet_wrap(~month)
+  coord_fixed(0.5) +
+  facet_wrap(~month)+
+  ggtitle("2010-2017 months compared to 30 years average 1970-2000")
 
-library(plotly)
+g
 
 ggplotly(g,tooltip="text")
 
@@ -84,19 +90,21 @@ g + transition_states(month,state_length=2) +
 
 ###
 #Temperatures
-nombres <- temps3 %>% group_by(nombre) %>% 
-  summarise(count=n(),length()) %>% 
+nombres <- temps %>% group_by(nombre) %>% 
+  summarise(count=n()) %>% 
   filter(count>300) %>% .$nombre
 
-temps3 %>% group_by(nombre) %>%
+temps %>% group_by(nombre) %>%
   summarise(count=n(),
             first_meas=min(date),
             last_meas=max(date),
             total_time=last_meas-first_meas) %>%
   arrange(desc(count))
 
-temps3 %>% filter(nombre %in% nombres) %>%
-  ggplot(aes(x=date,y=as.numeric(temp)))+geom_line()+geom_smooth(method='lm',col="red",size=2)+
+temps %>% filter(nombre %in% nombres) %>%
+  ggplot(aes(x=date,y=as.numeric(temp)))+
+  geom_line()+
+  geom_smooth(method='lm',col="red",size=2)+
   facet_wrap(~nombre,scales="free")
 
 
@@ -105,7 +113,7 @@ temps3 %>% filter(nombre %in% nombres) %>%
 #Option 1
 g <- temp_diff %>% filter(nombre=="Santo Domingo Ad.") %>%
   ggplot(aes(x=year,y=temp,fill=temp_diff))+
-  geom_bar(aes(text=paste0("Temp.diff: ",round(temp_diff,2),"°C")),stat="identity")+
+  geom_bar(aes(text=paste0("Temp.diff: ",round(temp_diff,2),"Â°C")),stat="identity")+
   geom_hline(aes(yintercept = avg_temp),col="yellow")+
   scale_fill_gradient2(low="blue",high="red",mid="white",midpoint=0,limits=c(-2,2),
                         na.value="red")+
@@ -124,7 +132,7 @@ g <- temp_diff %>% filter(nombre=="Santo Domingo Ad.") %>%
 
 ##Temps vs fires
 
-g <- temps3 %>% filter(nombre %in% "Santo Domingo Ad.",year %in% 1986:2017) %>% 
+g <- temps %>% filter(nombre %in% "Santo Domingo Ad.",year %in% 1986:2017) %>% 
   group_by(year=as.numeric(year)) %>% summarise(avg_temp=mean(temp),
                                                 max_temp=max(temp),
                                                 temp_dic=max(temp[month%in%c("12","01","02")],na.rm=T)) %>% 
