@@ -4,11 +4,12 @@ Code for Analysis of Temperatures and Precipitation in Chile and possible effect
 
 
 Data about forest firest collected by Conaf can be found [here](http://www.conaf.cl/incendios-forestales/incendios-forestales-en-chile/estadisticas-historicas/).
+I cleaned the excel sheets to create easy plots:
 
 Number of fires per month:
 
-![](Fires_per_month.jpeg)
+![](img/Fires_per_month.jpeg)
 
 Number of fires per region:
 
-![](Fires_per_Region.jpeg)
+![](img/Fires_per_Region.jpeg)
