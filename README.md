@@ -32,3 +32,10 @@ I filtered out measuring stations where we do not have enough data and calculcat
 Then I could display the differences to the 30-years-average:
 
 ![](img/temp_diff.jpeg)
+
+
+## Precipitation data
+
+The data and more data can be found [here](https://psl.noaa.gov/data/gridded/data.cmap.html).
+
+
