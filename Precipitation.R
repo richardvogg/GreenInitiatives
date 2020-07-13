@@ -1,5 +1,6 @@
 library(sf)
 library(raster)
+library(tabularaster)
 library(dplyr)
 library(ggplot2)
 
@@ -48,21 +49,40 @@ reg_simp %>%
 regiones <- regiones %>% st_transform(crs(prec)@projargs)
 reg_simp <- reg_simp %>% st_transform(crs(prec)@projargs)
 
-#Get the raster data
-
-#Change extent and CRS 
-#extent(prec) <- extent(-9000000,9000000,-18000000,18000000)
 crs(prec) <- crs(regiones)
 
+#Convert to Dataframe and visualize
 
-rt <- data.frame(rasterToPoints(mask(prec[[161]],reg_simp)))
+rt <- prec %>% 
+  mask(reg_simp) %>% 
+  rasterToPoints() %>% 
+  data.frame() %>% 
+  tidyr::pivot_longer(cols=-c(x,y),names_to="date",values_to="value") %>% 
+  mutate(date=gsub("X","",date),
+         date=gsub("[.]","-",date) %>% as.Date("%Y-%m-%d"))
 
-names(rt) <- c("x","y","value")
+
+rt %>% mutate(month=format(date,"%m")) %>%
+  group_by(x,y,month) %>% 
+  summarise(value=sum(value)) %>% 
+  #filter(month=='02') %>% 
+  ggplot()+
+  geom_tile(aes(x=x,y=y,fill=value))+
+  #geom_sf(data=reg_simp,col="red",fill=NA)+
+  facet_grid(~month)
 
 
 
-ggplot()+
-  geom_tile(data=rt,aes(x=x,y=y,fill=value))+
-  geom_sf(data=reg_simp,col="red",fill=NA)
+#Alternative
+plot(reg_simp)
+reg_simp_p <- st_cast(reg_simp, "POLYGON")
+
+cell <- cellnumbers(prec[[1]],reg_simp_p)
+cell %>% 
+  mutate(prec = raster::extract(prec[[1]], 
+                                 cell$cell_)) %>% 
+  group_by(object_) %>% 
+  summarise(prec = max(prec, na.rm = TRUE))
+
 
 
